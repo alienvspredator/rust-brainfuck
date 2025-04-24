@@ -1,7 +1,7 @@
 mod ast;
 mod token;
 
-use crate::ast::{Body, IncByte, Node, Program, Visitor, walk, IncPtr, Loop, DecByte};
+use crate::ast::{Body, Node, Program, Visitor, walk, IncPtr, Loop, DecByte};
 
 struct DebugVisitor;
 
