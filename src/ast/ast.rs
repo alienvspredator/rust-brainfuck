@@ -1,4 +1,10 @@
+use std::rc::Rc;
 use crate::token;
+
+trait Spanned {
+    fn pos(&self) -> token::Pos;
+    fn end(&self) -> token::Pos;
+}
 
 #[derive(Debug)]
 pub enum Node {
@@ -14,8 +20,8 @@ pub enum Node {
     BadNode(BadNode),
 }
 
-impl Node {
-    pub fn pos(&self) -> token::Pos {
+impl Spanned for Node {
+    fn pos(&self) -> token::Pos {
         match self {
             Node::Program(n) => n.pos(),
             Node::IncPtr(n) => n.pos(),
@@ -30,7 +36,7 @@ impl Node {
         }
     }
 
-    pub fn end(&self) -> token::Pos {
+    fn end(&self) -> token::Pos {
         match self {
             Node::Program(n) => n.end(),
             Node::IncPtr(n) => n.end(),
@@ -46,141 +52,91 @@ impl Node {
     }
 }
 
+macro_rules! simple_node {
+    ($name:ident, $field:ident) => {
+        #[derive(Debug)]
+        pub struct $name {
+            pub $field: token::Pos,
+        }
+
+        impl Spanned for $name {
+            fn pos(&self) -> token::Pos {
+                self.$field
+            }
+
+            fn end(&self) -> token::Pos {
+                self.$field + 1usize
+            }
+        }
+    };
+}
+
+macro_rules! simple_nodes {
+    ([$($name:ident),*], $field:ident) => {
+        $(simple_node!($name, $field);)*
+    };
+}
+
+simple_nodes!([
+    IncPtr,
+    DecPtr,
+    IncByte,
+    DecByte,
+    OutputByte,
+    InputByte
+], pos);
+
 #[derive(Debug)]
 pub struct Program {
-    pub body: Box<Node>,
+    pub body: Rc<Node>,
 }
 
 impl Program {
     pub fn pos(&self) -> token::Pos {
-        0
+        0.into()
     }
 
     pub fn end(&self) -> token::Pos {
-        0
-    }
-}
-
-#[derive(Debug)]
-pub struct IncPtr {
-    pub inc: token::Pos,
-}
-
-impl IncPtr {
-    pub fn pos(&self) -> token::Pos {
-        self.inc
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.inc + 1
-    }
-}
-
-#[derive(Debug)]
-pub struct DecPtr {
-    pub dec: token::Pos,
-}
-impl DecPtr {
-    pub fn pos(&self) -> token::Pos {
-        self.dec
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.dec + 1
-    }
-}
-
-#[derive(Debug)]
-pub struct IncByte {
-    pub inc: token::Pos,
-}
-impl IncByte {
-    pub fn pos(&self) -> token::Pos {
-        self.inc
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.inc + 1
-    }
-}
-
-#[derive(Debug)]
-pub struct DecByte {
-    pub dec: token::Pos,
-}
-impl DecByte {
-    pub fn pos(&self) -> token::Pos {
-        self.dec
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.dec + 1
-    }
-}
-
-#[derive(Debug)]
-pub struct OutputByte {
-    pub token_pos: token::Pos,
-}
-impl OutputByte {
-    pub fn pos(&self) -> token::Pos {
-        self.token_pos
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.token_pos + 1
-    }
-}
-
-#[derive(Debug)]
-pub struct InputByte {
-    pub token_pos: token::Pos,
-}
-impl InputByte {
-    pub fn pos(&self) -> token::Pos {
-        self.token_pos
-    }
-
-    pub fn end(&self) -> token::Pos {
-        self.token_pos + 1
+        0.into()
     }
 }
 
 #[derive(Debug)]
 pub struct Loop {
-    pub loop_pos: token::Pos,
-    pub body: Box<Node>,
+    pub pos: token::Pos,
+    pub body: Rc<Node>,
 }
 
-impl Loop {
-    pub fn pos(&self) -> token::Pos {
-        self.loop_pos
+impl Spanned for Loop {
+    fn pos(&self) -> token::Pos {
+        self.pos
     }
 
-    pub fn end(&self) -> token::Pos {
-        if let Node::Body(body) = &*self.body {
+    fn end(&self) -> token::Pos {
+        if let Node::Body(body) = self.body.as_ref() {
             body.end()
         } else {
-            self.loop_pos + 1
+            self.pos + 1usize
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Body {
-    pub body_pos: token::Pos,
+    pub pos: token::Pos,
     pub list: Vec<Node>,
 }
-impl Body {
-    pub fn pos(&self) -> token::Pos {
-        self.body_pos
+
+impl Spanned for Body {
+    fn pos(&self) -> token::Pos {
+        self.pos
     }
 
-    pub fn end(&self) -> token::Pos {
+    fn end(&self) -> token::Pos {
         if let Some(last) = self.list.last() {
             last.end()
         } else {
-            self.body_pos + 1
+            self.pos + 1usize
         }
     }
 }
@@ -190,12 +146,13 @@ pub struct BadNode {
     pub from: token::Pos,
     pub to: token::Pos,
 }
-impl BadNode {
-    pub fn pos(&self) -> token::Pos {
+
+impl Spanned for BadNode {
+    fn pos(&self) -> token::Pos {
         self.from
     }
 
-    pub fn end(&self) -> token::Pos {
+    fn end(&self) -> token::Pos {
         self.to
     }
 }
